@@ -24,7 +24,8 @@ std::string execCommand(const std::string& command) {
     return result;
 }
 
-Sound::Sound(const std::string& name, const std::filesystem::path& path) : m_name(name), m_path(path), m_length(0)
+Sound::Sound(const std::string& name, const std::filesystem::path& path, const std::string& url)
+    : m_path(path), m_name(name), m_url(url), m_length(0)
 {
 }
 
@@ -86,8 +87,8 @@ Sound* AudioPlayer::DownloadVideo(const std::string& url)
 #endif
     
     if (std::filesystem::exists(fileOutputPath.generic_string() + ".pcm")) {
-        std::cout << "Video already downloaded" << '\n';
-        Sound* outputSound = new Sound(videoTitle, fileOutputPath.generic_string() + ".pcm");
+        std::cout << "Video " << url << " already downloaded" << '\n';
+        Sound* outputSound = new Sound(videoTitle, fileOutputPath.generic_string() + ".pcm", url);
         return outputSound;
     }
 
@@ -113,14 +114,14 @@ Sound* AudioPlayer::DownloadVideo(const std::string& url)
 
         fileOutputPath = fileOutputPath.generic_string() + ".pcm";
     }
-    Sound* outputSound = new Sound(videoTitle, fileOutputPath);
+    Sound* outputSound = new Sound(videoTitle, fileOutputPath, url);
 
     if (!std::filesystem::exists(fileOutputPath)) {
         std::cout << "Failed to convert video " << fileOutputPath << " to pcm" << '\n';
         return nullptr;
     }
 
-    std::cout << "Video downloaded" << '\n';
+    std::cout << "Video " << url << " downloaded" << '\n';
     
     return outputSound;
 }

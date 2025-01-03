@@ -15,6 +15,8 @@ add_executable(${PROJECT_NAME}
     src/Bot.h
     src/Event.cpp
     src/Event.h
+    src/ThreadManager.cpp
+    src/ThreadManager.h
 )
  
 # Linking libraries

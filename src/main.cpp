@@ -2,6 +2,7 @@
 
 #include "AudioPlayer.h"
 #include "Bot.h"
+#include "ThreadManager.h"
 
 #define TOKEN "MTMyNDEwNDA3NzQ2NTg3ODY5MA.GtQzGf.K_GL9va3aSYcmjcZud9KYLyYyaBA52dnnfh4PY"
 
@@ -11,6 +12,8 @@ int Main(int argc, char** argv)
     // TODO : Add queue system
     // TODO : Handle playlist
     // TODO : Handle other website than youtube
+    auto threadManager = ThreadManager::GetInstance();
+    threadManager->Initialize();
     SoundManager::Initialize();
     try
     {
@@ -28,6 +31,7 @@ int Main(int argc, char** argv)
     }
 
     SoundManager::Destroy();
+    threadManager->Destroy();
     return 0;
 }
 int main(int argc, char** argv)

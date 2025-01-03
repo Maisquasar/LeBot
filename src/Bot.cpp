@@ -1,6 +1,7 @@
 ﻿#include "Bot.h"
 
 #include  "AudioPlayer.h"
+#include "ThreadManager.h"
 
 Bot::Bot(const std::string& token) : m_bot(token)
 {
@@ -40,11 +41,6 @@ void Bot::Initialize()
 void Bot::CreateSlashCommands()
 {
     std::cout << "Logged in as " << m_bot.me.username << "!\n";
-    
-    dpp::slashcommand stopCommand;
-    stopCommand.set_name("stop")
-               .set_description("Stop the bot")
-               .set_application_id(m_bot.me.id);
 
     dpp::slashcommand playVideoCommand;
     playVideoCommand.set_name("play")
@@ -53,22 +49,27 @@ void Bot::CreateSlashCommands()
                         dpp::command_option(dpp::co_string, "url", "The URL of the video", true)
                     )
                     .set_application_id(m_bot.me.id);
+    m_bot.global_command_create(playVideoCommand);
+
+    dpp::slashcommand stopCommand;
+    stopCommand.set_name("stop")
+               .set_description("Stop the bot")
+               .set_application_id(m_bot.me.id);
+    m_bot.global_command_create(stopCommand);
 
     dpp::slashcommand pingCommand;
     pingCommand.set_name("ping")
                .set_description("Ping the bot")
                .set_application_id(m_bot.me.id);
+    m_bot.global_command_create(pingCommand);
 
     dpp::slashcommand clearCommand;
     clearCommand.set_name("clear")
                .set_description("Clear the last 100 messages")
                .set_application_id(m_bot.me.id);
+    m_bot.global_command_create(clearCommand);
 
     /* Register the commands */
-    m_bot.global_command_create(stopCommand);
-    m_bot.global_command_create(playVideoCommand);
-    m_bot.global_command_create(pingCommand);
-    m_bot.global_command_create(clearCommand);
 }
 
 void Bot::Run()
@@ -117,29 +118,20 @@ void Bot::PlayAudio(const std::string& url, const dpp::interaction_create_t& eve
     if (!JoinVocalChannel(event))
         return;
 
-    SendMessage(event.command.channel_id, "Downloading video...");
     Sound* sound = AudioPlayer::DownloadVideo(url);
-    SendMessage(event.command.channel_id, "Video Downloaded");
     if (!sound)
     {
         event.reply(dpp::ir_channel_message_with_source, "Failed to download video");
         return;
     }
-    SoundManager::GetInstance()->AddSound(sound->GetName(), sound->GetPath());
-
-    auto playAudio = [&](Sound* sound, const dpp::interaction_create_t& event)
-    {
-        PlaySound(sound, event);
-        event.reply(dpp::ir_channel_message_with_source, "Playing audio");
-    };
 
     if (m_isVoiceReady)
     {
-        playAudio(sound, event);
+        PlaySound(sound, event);
         return;
     }
-    m_onVoiceReady.Bind([&, sound, event]() {
-        playAudio(sound, event);
+    m_onVoiceReady.Bind([&, sound, event, url]() {
+        PlaySound(sound, event);
     });
 }
 
@@ -173,10 +165,29 @@ bool Bot::PlaySound(Sound* sound, const dpp::interaction_create_t& event)
 
     sound->Load();
 
+    SendMessage(event.command.channel_id, "Playing audio " + sound->GetURL());
+    event.delete_original_response();
     voiceClient->send_audio_raw(reinterpret_cast<uint16_t*>(sound->GetData()), sound->GetDataSize());
 
-    std::cout << "Playing audio" << '\n';
+    std::cout << "Playing audio " << sound->GetURL() << '\n';
     return true;
+}
+
+void Bot::StopAudio(const dpp::interaction_create_t& event)
+{
+    dpp::voiceconn* v = event.from->get_voice(event.command.guild_id);
+    auto timeout = std::chrono::system_clock::now() + std::chrono::seconds(20);
+    
+    while (!v || !v->voiceclient || !v->voiceclient->is_ready()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        if (std::chrono::system_clock::now() > timeout) {
+            std::cout << "Voice client not ready" << '\n';
+            return;
+        }
+    }
+
+    v->voiceclient->stop_audio();
 }
 
 void Bot::SendMessage(dpp::snowflake channelId, const std::string& message)
@@ -184,18 +195,47 @@ void Bot::SendMessage(dpp::snowflake channelId, const std::string& message)
     m_bot.message_create(dpp::message(channelId, message));
 }
 
-void Bot::DeleteMessage(dpp::snowflake channelId, dpp::snowflake messageId)
+void Bot::DeleteMessage(dpp::snowflake channelId, dpp::snowflake messageId, bool lock /*= false*/)
 {
-    m_bot.message_delete(messageId, channelId);
+    std::atomic_bool done = false;
+    m_bot.message_delete(messageId, channelId, [&](const dpp::confirmation_callback_t& event)
+    {
+        done = true;
+    });
+    while (lock && !done)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
 }
 
 void Bot::DeleteLastMessages(dpp::snowflake channelId, int count)
 {
-    auto messages = GetMessages(channelId, count);
+    dpp::message_map messages;
+    std::atomic_bool done = false;
+    m_bot.messages_get(channelId, count, {}, {}, {},
+        [&](const dpp::confirmation_callback_t& callback)
+        {
+            if (callback.is_error()) {
+                std::cerr << "Failed to get messages: " << callback.get_error().message << std::endl;
+                return;
+            }
 
-    for (const auto& messageID : messages | std::views::keys)
+            messages = std::get<dpp::message_map>(callback.value);
+
+            std::vector<dpp::snowflake> ids;
+            for (const auto& messageID : messages | std::views::keys)
+            {
+                ids.push_back(messageID);
+            }
+            m_bot.message_delete_bulk(ids, channelId, [&](const dpp::confirmation_callback_t& event)
+            {
+                done = true;
+            });
+        }
+    );
+    while (!done)
     {
-        DeleteMessage(channelId, messageID);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 }
 
@@ -293,16 +333,28 @@ void Bot::OnInteractionCreate(const dpp::interaction_create_t& event)
         }
         else if (cmd_data.name == "stop")
         {
+            event.thinking();
+            StopAudio(event);
             event.reply(dpp::ir_channel_message_with_source, "Bot is stopping...");
-            m_bot.shutdown();
+            std::cout << "Stopping audio" << std::endl;
         }
         else if (cmd_data.name == "play")
         {
-            OnPlay(event);
+            event.thinking();
+            ThreadManager::AddTask(
+                [this, event]() {
+                    OnPlay(event);
+                });
         }
         else if (cmd_data.name == "clear")
         {
-            DeleteLastMessages(event.command.channel_id, 100);
+            event.thinking();
+            ThreadManager::AddTask(
+                [this, event, channelId = event.command.channel_id]() {
+                    DeleteLastMessages(channelId, 100);
+                    event.delete_original_response();
+                });
+            
         }
     }
 }

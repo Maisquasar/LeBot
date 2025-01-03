@@ -14,7 +14,7 @@ TODO
 class Sound
 {
 public:
-    explicit Sound(const std::string& name, const std::filesystem::path& path);
+    explicit Sound(const std::string& name, const std::filesystem::path& path, const std::string& url);
     ~Sound() = default;
 
     bool Load();
@@ -25,9 +25,12 @@ public:
 
     uint8_t* GetData() const { return m_data; }
     size_t GetDataSize() const { return m_size; }
+    std::string GetURL() const { return m_url; }
+
 private:
     std::filesystem::path m_path;
     std::string m_name;
+    std::string m_url;
     uint32_t m_length;
     size_t m_size = 0;
     uint8_t* m_data = nullptr;
@@ -45,7 +48,7 @@ public:
 
     static void Destroy() { delete m_instance; }
 
-    bool AddSound(const std::string& name, const std::filesystem::path& path) { return m_sounds[name] = new Sound(name, path); }
+    bool AddSound(const std::string& name, Sound* sound) { return m_sounds[name] = sound; }
 
     Sound* GetSound(const std::string& name) { return m_sounds[name]; }
     std::map<std::string, Sound*> GetSounds() { return m_sounds; }

@@ -28,9 +28,10 @@ public:
     void PlayAudio(const std::string& url, const dpp::interaction_create_t& event);
     // The bot need to be on a voice channel
     bool PlaySound(Sound* sound, const dpp::interaction_create_t& event);
+    void StopAudio(const dpp::interaction_create_t& event);
 
     void SendMessage(dpp::snowflake channelId, const std::string& message);
-    void DeleteMessage(dpp::snowflake channelId, dpp::snowflake messageId);
+    void DeleteMessage(dpp::snowflake channelId, dpp::snowflake messageId, bool lock = false);
     void DeleteLastMessages(dpp::snowflake channelId, int count = 100);
     
     dpp::message_map GetMessages(dpp::snowflake channelId, int count = 100);
