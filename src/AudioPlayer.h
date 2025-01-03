@@ -59,6 +59,4 @@ class AudioPlayer
 {
 public:
     static Sound* DownloadVideo(const std::string& url);
-
-    static bool PlayAudio(const dpp::cluster& bot, const dpp::interaction_create_t& event, Sound* sound);
 };

@@ -31,18 +31,17 @@ Sound::Sound(const std::string& name, const std::filesystem::path& path) : m_nam
 bool Sound::Load()
 {
     std::ifstream audioFile(m_path, std::ios::in|std::ios::binary|std::ios::ate);
-    if (audioFile.is_open()) {
-        m_size = audioFile.tellg();
-        m_data = new uint8_t[m_size];
-        audioFile.seekg (0, std::ios::beg);
-        audioFile.read(reinterpret_cast<char*>(m_data), m_size);
-        audioFile.close();
-        return true;
-    }
-    else {
+    if (!audioFile.is_open())
+    {
         std::cout << "Failed to read audio file" << std::endl;
         return false;
     }
+    m_size = audioFile.tellg();
+    m_data = new uint8_t[m_size];
+    audioFile.seekg (0, std::ios::beg);
+    audioFile.read(reinterpret_cast<char*>(m_data), m_size);
+    audioFile.close();
+    return true;
 }
 
 SoundManager* SoundManager::m_instance = nullptr;
@@ -124,34 +123,4 @@ Sound* AudioPlayer::DownloadVideo(const std::string& url)
     std::cout << "Video downloaded" << '\n';
     
     return outputSound;
-}
-
-bool AudioPlayer::PlayAudio(const dpp::cluster& bot, const dpp::interaction_create_t& event, Sound* sound)
-{
-    auto path = sound->GetPath();
-    if (!std::filesystem::exists(path)) {
-        std::cout << "Audio file " << path << " not found" << std::endl;
-        return false;
-    }
-    dpp::voiceconn* v = event.from->get_voice(event.command.guild_id);
-
-    auto timeout = std::chrono::system_clock::now() + std::chrono::seconds(20);
-    
-    while (!v || !v->voiceclient || !v->voiceclient->is_ready()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-        if (std::chrono::system_clock::now() > timeout) {
-            std::cout << "Voice client not ready" << std::endl;
-            return false;
-        }
-    }
-    std::cout << "Voice client ready" << std::endl;
-    dpp::discord_voice_client* voiceClient = v->voiceclient;
-
-    sound->Load();
-
-    voiceClient->send_audio_raw(reinterpret_cast<uint16_t*>(sound->GetData()), sound->GetDataSize());
-
-    std::cout << "Playing audio" << '\n';
-    return true;
 }
