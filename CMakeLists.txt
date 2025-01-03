@@ -11,6 +11,10 @@ add_executable(${PROJECT_NAME}
     src/main.cpp
     src/AudioPlayer.cpp
     src/AudioPlayer.h
+    src/Bot.cpp
+    src/Bot.h
+    src/Event.cpp
+    src/Event.h
 )
  
 # Linking libraries
