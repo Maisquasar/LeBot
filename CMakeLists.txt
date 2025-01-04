@@ -22,11 +22,17 @@ add_executable(${PROJECT_NAME}
 # Linking libraries
 target_link_libraries(${PROJECT_NAME}
     dpp
+    ${CMAKE_SOURCE_DIR}/libs/opusfile/lib/opusfile.lib
+    ${CMAKE_SOURCE_DIR}/libs/libogg/lib/ogg.lib
+    ${CMAKE_SOURCE_DIR}/libs/opus/lib/opus.lib
 )
  
 # Specify includes
 target_include_directories(${PROJECT_NAME} PRIVATE
     libs/DPP/include
+    libs/opusfile/include
+    libs/libogg/include
+    libs/opus/include/opus
 )
  
 # Set C++ version

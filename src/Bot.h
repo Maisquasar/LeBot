@@ -25,6 +25,7 @@ public:
     void Destroy();
 
     bool JoinVocalChannel(const dpp::interaction_create_t &event);
+    void LeaveVocalChannel(const dpp::interaction_create_t& event);
     void PlayAudio(const std::string& url, const dpp::interaction_create_t& event);
     // The bot need to be on a voice channel
     bool PlaySound(Sound* sound, const dpp::interaction_create_t& event);
@@ -36,7 +37,7 @@ public:
     
     dpp::message_map GetMessages(dpp::snowflake channelId, int count = 100);
     dpp::message_map GetMessagesOfUser(dpp::snowflake channelId, dpp::snowflake userId, int count = 100);
-    
+
     // ==== Events ==== //
     void OnInteractionCreate(const dpp::interaction_create_t &event);
     void OnPlay(const dpp::interaction_create_t& event);

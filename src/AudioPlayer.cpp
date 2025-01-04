@@ -5,6 +5,9 @@
 #include <fstream>
 #include <iostream>
 
+#include <ogg/ogg.h>
+#include <opus/opusfile.h>
+
 #ifdef _WIN32
 #define popen _popen
 #define pclose _pclose
@@ -29,20 +32,124 @@ Sound::Sound(const std::string& name, const std::filesystem::path& path, const s
 {
 }
 
-bool Sound::Load()
+Sound::~Sound()
 {
-    std::ifstream audioFile(m_path, std::ios::in|std::ios::binary|std::ios::ate);
-    if (!audioFile.is_open())
+    Unload();
+}
+
+bool Sound::Load(dpp::discord_voice_client* voiceclient)
+{
+    OpusHead header;
+    char *buffer;
+
+    FILE *fd;
+
+    fd = fopen(m_path.generic_string().c_str(), "rb");
+
+    fseek(fd, 0L, SEEK_END);
+    size_t sz = ftell(fd);
+    rewind(fd);
+
+    ogg_sync_init(&oy);
+
+    int eos = 0;
+    int i;
+
+    buffer = ogg_sync_buffer(&oy, sz);
+    fread(buffer, 1, sz, fd);
+
+    ogg_sync_wrote(&oy, sz);
+
+    if (ogg_sync_pageout(&oy, &og) != 1)
     {
-        std::cout << "Failed to read audio file" << std::endl;
+        std::cout << "Does not appear to be ogg stream." << "\n";
+        
         return false;
     }
-    m_size = audioFile.tellg();
-    m_data = new uint8_t[m_size];
-    audioFile.seekg (0, std::ios::beg);
-    audioFile.read(reinterpret_cast<char*>(m_data), m_size);
-    audioFile.close();
+
+    ogg_stream_init(&os, ogg_page_serialno(&og));
+
+    if (ogg_stream_pagein(&os,&og) < 0) {
+        std::cout << "Error reading initial page of ogg stream." << "\n";
+        
+        return false;
+    }
+
+    if (ogg_stream_packetout(&os,&op) != 1)
+    {
+        std::cout << "Error reading header packet of ogg stream." << "\n";
+        
+        return false;
+    }
+
+    /* We must ensure that the ogg stream actually contains opus data */
+    if (!(op.bytes > 8 && !memcmp("OpusHead", op.packet, 8)))
+    {
+        std::cout << "Not an ogg opus stream." << "\n";
+        
+        return false;
+    }
+
+    /* Parse the header to get stream info */
+    int err = opus_head_parse(&header, op.packet, op.bytes);
+    if (err)
+    {
+        std::cout << "Not a ogg opus stream" << "\n";
+        
+        return false;
+    }
+    /* Now we ensure the encoding is correct for Discord */
+    if (header.channel_count != 2 && header.input_sample_rate != 48000)
+    {
+        std::cout << "Wrong encoding for Discord, must be 48000Hz sample rate with 2 channels." << "\n";
+        
+        return false;
+    }
+
+    /* Now loop though all the pages and send the packets to the vc */
+    while (ogg_sync_pageout(&oy, &og) == 1){
+        ogg_stream_init(&os, ogg_page_serialno(&og));
+
+        if(ogg_stream_pagein(&os,&og)<0){
+            std::cout << "Error reading page of Ogg bitstream data." << "\n";
+            exit(1);
+        }
+
+        while (ogg_stream_packetout(&os,&op) != 0)
+        {
+            /* Read remaining headers */
+            if (op.bytes > 8 && !memcmp("OpusHead", op.packet, 8))
+            {
+                int err = opus_head_parse(&header, op.packet, op.bytes);
+                if (err)
+                {
+                    std::cout << "Not a ogg opus stream" << "\n";
+                    return false;
+                }
+                if (header.channel_count != 2 && header.input_sample_rate != 48000)
+                {
+                    std::cout << "Wrong encoding for Discord, must be 48000Hz sample rate with 2 channels." << "\n";
+                    return false;
+                }
+                continue;
+            }
+            /* Skip the opus tags */
+            if (op.bytes > 8 && !memcmp("OpusTags", op.packet, 8))
+                continue; 
+
+            samples = opus_packet_get_samples_per_frame(op.packet, 48000);
+            
+            voiceclient->send_audio_opus(op.packet, op.bytes, samples / 48);
+        }
+    }
     return true;
+}
+
+void Sound::Unload()
+{
+    /* Cleanup */
+    ogg_stream_clear(&os);
+    ogg_sync_clear(&oy);
 }
 
 SoundManager* SoundManager::m_instance = nullptr;
@@ -80,22 +187,22 @@ Sound* AudioPlayer::DownloadVideo(const std::string& url)
 
         std::filesystem::path title = videoTitle;
 
-        fileOutputPath = (currentPath / OUTPUT_PATH / title).generic_string() + ".wav";
+        fileOutputPath = (currentPath / OUTPUT_PATH / title).generic_string() + ".ogg";
     }
 #else
     TODO
 #endif
-    
-    if (std::filesystem::exists(fileOutputPath.generic_string() + ".pcm")) {
+
+    if (std::filesystem::exists(fileOutputPath)) {
         std::cout << "Video " << url << " already downloaded" << '\n';
-        Sound* outputSound = new Sound(videoTitle, fileOutputPath.generic_string() + ".pcm", url);
+        Sound* outputSound = new Sound(videoTitle, fileOutputPath, url);
         return outputSound;
     }
 
 #ifdef _WIN32
     std::string ffmpegLoc = "--ffmpeg-location " + currentPath.parent_path().generic_string() + "/libs/ffmpeg/bin";
     std::string outputPath = "-o " + currentPathString + "/" OUTPUT_PATH + "%(id)s.%(ext)s";
-    std::string command = "cmd /C \"" + currentPathString + "/" YTP_DLP_PATH "\" " + ffmpegLoc + " --extract-audio --audio-format wav " + outputPath + " ";
+    std::string command = "cmd /C \"" + currentPathString + "/" YTP_DLP_PATH "\" " + ffmpegLoc + " --extract-audio --remux-video ogg " + outputPath + " ";
 #else
     TODO
 #endif
@@ -103,6 +210,7 @@ Sound* AudioPlayer::DownloadVideo(const std::string& url)
     
     std::system(command.c_str());
 
+    /*
     // Convert to raw pcm
     {
         std::string outputPath = fileOutputPath.generic_string();
@@ -114,10 +222,11 @@ Sound* AudioPlayer::DownloadVideo(const std::string& url)
 
         fileOutputPath = fileOutputPath.generic_string() + ".pcm";
     }
+    */
     Sound* outputSound = new Sound(videoTitle, fileOutputPath, url);
 
     if (!std::filesystem::exists(fileOutputPath)) {
-        std::cout << "Failed to convert video " << fileOutputPath << " to pcm" << '\n';
+        std::cout << "Failed to convert video " << fileOutputPath << " to ogg" << '\n';
         return nullptr;
     }
 

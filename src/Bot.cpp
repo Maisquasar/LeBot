@@ -69,7 +69,17 @@ void Bot::CreateSlashCommands()
                .set_application_id(m_bot.me.id);
     m_bot.global_command_create(clearCommand);
 
-    /* Register the commands */
+    dpp::slashcommand joinCommand;
+    joinCommand.set_name("join")
+               .set_description("Join a voice channel")
+               .set_application_id(m_bot.me.id);
+    m_bot.global_command_create(joinCommand);
+
+    dpp::slashcommand disconnectCommand;
+    disconnectCommand.set_name("disconnect")
+               .set_description("Disconnect from a voice channel")
+               .set_application_id(m_bot.me.id);
+    m_bot.global_command_create(disconnectCommand);
 }
 
 void Bot::Run()
@@ -111,6 +121,15 @@ bool Bot::JoinVocalChannel(const dpp::interaction_create_t& event)
     }
 
     return true;
+}
+
+void Bot::LeaveVocalChannel(const dpp::interaction_create_t& event)
+{
+    dpp::guild* g = dpp::find_guild(event.command.guild_id);
+    if (g) {
+        dpp::discord_client* client = event.from;
+        client->disconnect_voice(event.command.guild_id);
+    }
 }
 
 void Bot::PlayAudio(const std::string& url, const dpp::interaction_create_t& event)
@@ -163,11 +182,12 @@ bool Bot::PlaySound(Sound* sound, const dpp::interaction_create_t& event)
     std::cout << "Voice client ready" << '\n';
     dpp::discord_voice_client* voiceClient = v->voiceclient;
 
-    sound->Load();
+    sound->Load(v->voiceclient);
 
     SendMessage(event.command.channel_id, "Playing audio " + sound->GetURL());
     event.delete_original_response();
-    voiceClient->send_audio_raw(reinterpret_cast<uint16_t*>(sound->GetData()), sound->GetDataSize());
+
+    auto op = sound->GetPacket();
 
     std::cout << "Playing audio " << sound->GetURL() << '\n';
     return true;
@@ -333,14 +353,15 @@ void Bot::OnInteractionCreate(const dpp::interaction_create_t& event)
         }
         else if (cmd_data.name == "stop")
         {
-            event.thinking();
-            StopAudio(event);
             event.reply(dpp::ir_channel_message_with_source, "Bot is stopping...");
+            StopAudio(event);
             std::cout << "Stopping audio" << std::endl;
+            event.delete_original_response();
         }
         else if (cmd_data.name == "play")
         {
             event.thinking();
+            event.reply(dpp::ir_channel_message_with_source, "Downloading audio...");
             ThreadManager::AddTask(
                 [this, event]() {
                     OnPlay(event);
@@ -354,7 +375,18 @@ void Bot::OnInteractionCreate(const dpp::interaction_create_t& event)
                     DeleteLastMessages(channelId, 100);
                     event.delete_original_response();
                 });
-            
+        }
+        else if (cmd_data.name == "join")
+        {
+            event.reply(dpp::ir_channel_message_with_source, "Joining voice channel...");
+            JoinVocalChannel(event);
+            event.delete_original_response();
+        }
+        else if (cmd_data.name == "disconnect")
+        {
+            event.reply(dpp::ir_channel_message_with_source, "Leaving voice channel...");
+            LeaveVocalChannel(event);
+            event.delete_original_response();
         }
     }
 }

@@ -2,6 +2,7 @@
 #include <cluster.h>
 #include <filesystem>
 #include <string>
+#include <ogg/ogg.h>
 
 #define OUTPUT_PATH "audio/"
 
@@ -15,25 +16,30 @@ class Sound
 {
 public:
     explicit Sound(const std::string& name, const std::filesystem::path& path, const std::string& url);
-    ~Sound() = default;
+    ~Sound();
 
-    bool Load();
+    bool Load(dpp::discord_voice_client* voiceclient);
+    void Unload();
 
     std::filesystem::path GetPath() const { return m_path; }
     std::string GetName() const { return m_name; }
     uint32_t GetLength() const { return m_length; }
-
-    uint8_t* GetData() const { return m_data; }
-    size_t GetDataSize() const { return m_size; }
     std::string GetURL() const { return m_url; }
 
+    ogg_packet* GetPacket() { return &op; }
+    int GetSamples() const { return samples; }
 private:
     std::filesystem::path m_path;
     std::string m_name;
     std::string m_url;
     uint32_t m_length;
-    size_t m_size = 0;
-    uint8_t* m_data = nullptr;
+
+    
+    ogg_sync_state oy; 
+    ogg_stream_state os;
+    ogg_page og;
+    ogg_packet op;
+    int samples;
 };
 
 class SoundManager

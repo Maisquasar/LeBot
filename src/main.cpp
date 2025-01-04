@@ -8,7 +8,6 @@
 
 int Main(int argc, char** argv)
 {
-    //TODO : Make class to organize this code !!!
     // TODO : Add queue system
     // TODO : Handle playlist
     // TODO : Handle other website than youtube
