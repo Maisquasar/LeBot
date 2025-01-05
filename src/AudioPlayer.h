@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <string>
 #include <ogg/ogg.h>
+#include <opus/opusfile.h>
 
 #define OUTPUT_PATH "audio/"
 
@@ -18,12 +19,13 @@ public:
     explicit Sound(const std::string& name, const std::filesystem::path& path, const std::string& url);
     ~Sound();
 
-    bool Load(dpp::discord_voice_client* voiceclient);
+    bool Load();
+    void Play(dpp::discord_voice_client* voiceclient);
     void Unload();
 
     std::filesystem::path GetPath() const { return m_path; }
     std::string GetName() const { return m_name; }
-    uint32_t GetLength() const { return m_length; }
+    double GetLength() const { return m_length; }
     std::string GetURL() const { return m_url; }
 
     ogg_packet* GetPacket() { return &op; }
@@ -32,9 +34,9 @@ private:
     std::filesystem::path m_path;
     std::string m_name;
     std::string m_url;
-    uint32_t m_length;
+    double m_length;
 
-    
+    OpusHead header;
     ogg_sync_state oy; 
     ogg_stream_state os;
     ogg_page og;

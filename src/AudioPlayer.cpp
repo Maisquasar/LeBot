@@ -37,9 +37,8 @@ Sound::~Sound()
     Unload();
 }
 
-bool Sound::Load(dpp::discord_voice_client* voiceclient)
+bool Sound::Load()
 {
-    OpusHead header;
     char *buffer;
 
     FILE *fd;
@@ -106,6 +105,12 @@ bool Sound::Load(dpp::discord_voice_client* voiceclient)
         return false;
     }
 
+    return true;
+}
+
+void Sound::Play(dpp::discord_voice_client* voiceclient)
+{
+    double duration = 0;
     /* Now loop though all the pages and send the packets to the vc */
     while (ogg_sync_pageout(&oy, &og) == 1){
         ogg_stream_init(&os, ogg_page_serialno(&og));
@@ -124,12 +129,12 @@ bool Sound::Load(dpp::discord_voice_client* voiceclient)
                 if (err)
                 {
                     std::cout << "Not a ogg opus stream" << "\n";
-                    return false;
+                    return;
                 }
                 if (header.channel_count != 2 && header.input_sample_rate != 48000)
                 {
                     std::cout << "Wrong encoding for Discord, must be 48000Hz sample rate with 2 channels." << "\n";
-                    return false;
+                    return;
                 }
                 continue;
             }
@@ -138,11 +143,13 @@ bool Sound::Load(dpp::discord_voice_client* voiceclient)
                 continue; 
 
             samples = opus_packet_get_samples_per_frame(op.packet, 48000);
+
+            duration += static_cast<double>(samples) / header.input_sample_rate;
             
             voiceclient->send_audio_opus(op.packet, op.bytes, samples / 48);
         }
     }
-    return true;
+    m_length = duration;
 }
 
 void Sound::Unload()
@@ -156,6 +163,8 @@ SoundManager* SoundManager::m_instance = nullptr;
 
 Sound* AudioPlayer::DownloadVideo(const std::string& url)
 {
+    //TODO: Handle playlist
+    Sound* outputSound = nullptr;
     if (url.empty()) {
         std::cout << "No video provided" << std::endl;
         return nullptr;
@@ -192,10 +201,11 @@ Sound* AudioPlayer::DownloadVideo(const std::string& url)
 #else
     TODO
 #endif
+    outputSound = new Sound(videoTitle, fileOutputPath, url);
 
     if (std::filesystem::exists(fileOutputPath)) {
         std::cout << "Video " << url << " already downloaded" << '\n';
-        Sound* outputSound = new Sound(videoTitle, fileOutputPath, url);
+        outputSound->Load();
         return outputSound;
     }
 
@@ -210,27 +220,9 @@ Sound* AudioPlayer::DownloadVideo(const std::string& url)
     
     std::system(command.c_str());
 
-    /*
-    // Convert to raw pcm
-    {
-        std::string outputPath = fileOutputPath.generic_string();
-        // 48kHz pcm 2 channels 16 bit
-        std::string ffmpegCommand = "cmd /C " + currentPath.parent_path().generic_string() + "/libs/ffmpeg/bin/ffmpeg.exe -i " + outputPath + " -acodec pcm_s16le -f s16le -ac 2 -ar 48000 " + outputPath + ".pcm";
-        std::system(ffmpegCommand.c_str());
-
-        std::remove(fileOutputPath.generic_string().c_str());
-
-        fileOutputPath = fileOutputPath.generic_string() + ".pcm";
-    }
-    */
-    Sound* outputSound = new Sound(videoTitle, fileOutputPath, url);
-
-    if (!std::filesystem::exists(fileOutputPath)) {
-        std::cout << "Failed to convert video " << fileOutputPath << " to ogg" << '\n';
-        return nullptr;
-    }
-
     std::cout << "Video " << url << " downloaded" << '\n';
+
+    outputSound->Load();
     
     return outputSound;
 }

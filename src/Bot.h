@@ -28,7 +28,7 @@ public:
     void LeaveVocalChannel(const dpp::interaction_create_t& event);
     void PlayAudio(const std::string& url, const dpp::interaction_create_t& event);
     // The bot need to be on a voice channel
-    bool PlaySound(Sound* sound, const dpp::interaction_create_t& event);
+    bool PlaySound(Sound* sound);
     void StopAudio(const dpp::interaction_create_t& event);
 
     void SendMessage(dpp::snowflake channelId, const std::string& message);
@@ -42,6 +42,7 @@ public:
     void OnInteractionCreate(const dpp::interaction_create_t &event);
     void OnPlay(const dpp::interaction_create_t& event);
 
+    void PlayNextSound();
     // Tick on a separate thread
     void OnTick();
     
@@ -55,5 +56,10 @@ private:
 
     std::atomic_bool m_isVoiceReady = false;
     Event<> m_onVoiceReady;
-    
+    dpp::voiceconn* m_voiceConnection = nullptr;
+
+    bool m_isPlayingSound = false;
+    float m_time = 0.0f;
+    Sound* m_currentSound = nullptr;
+    std::queue<Sound*> m_soundsQueue;
 };

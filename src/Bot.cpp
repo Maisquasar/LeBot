@@ -23,9 +23,10 @@ void Bot::Initialize()
     
             
     m_bot.on_voice_state_update([&](const dpp::voice_state_update_t& voice_state) {
-    
+        
         if (voice_state.state.channel_id == 0) {
             m_isVoiceReady = false;
+            m_voiceConnection = nullptr;
         }
         else
         {
@@ -98,9 +99,8 @@ void Bot::RunThread()
 {
     while (m_isRunning)
     {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         OnTick();
-
-        std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 }
 
@@ -116,7 +116,7 @@ bool Bot::JoinVocalChannel(const dpp::interaction_create_t& event)
 {
     dpp::guild * g = dpp::find_guild(event.command.guild_id);
     if (!g->connect_member_voice(event.command.usr.id)) {
-        m_bot.message_create(dpp::message(event.command.channel_id, "You don't seem to be on a voice channel! :("));
+        event.reply(dpp::ir_channel_message_with_source, "You don't seem to be on a voice channel! :(");
         return false;
     }
 
@@ -140,21 +140,27 @@ void Bot::PlayAudio(const std::string& url, const dpp::interaction_create_t& eve
     Sound* sound = AudioPlayer::DownloadVideo(url);
     if (!sound)
     {
-        event.reply(dpp::ir_channel_message_with_source, "Failed to download video");
+        std::cout << "Failed to download audio" << std::endl;
         return;
     }
 
     if (m_isVoiceReady)
     {
-        PlaySound(sound, event);
+        m_voiceConnection = event.from->get_voice(event.command.guild_id);
+        PlaySound(sound);
+        SendMessage(event.command.channel_id, "Playing audio " + sound->GetURL());
+        event.delete_original_response();
         return;
     }
     m_onVoiceReady.Bind([&, sound, event, url]() {
-        PlaySound(sound, event);
+        m_voiceConnection = event.from->get_voice(event.command.guild_id);
+        PlaySound(sound);
+        SendMessage(event.command.channel_id, "Playing audio " + sound->GetURL());
+        event.delete_original_response();
     });
 }
 
-bool Bot::PlaySound(Sound* sound, const dpp::interaction_create_t& event)
+bool Bot::PlaySound(Sound* sound)
 {
     if (!sound)
     {
@@ -162,16 +168,17 @@ bool Bot::PlaySound(Sound* sound, const dpp::interaction_create_t& event)
         return false;
     }
     
+    
     auto path = sound->GetPath();
     if (!std::filesystem::exists(path)) {
         std::cout << "Audio file " << path << " not found" << std::endl;
         return false;
     }
-    dpp::voiceconn* v = event.from->get_voice(event.command.guild_id);
+    
 
     auto timeout = std::chrono::system_clock::now() + std::chrono::seconds(20);
     
-    while (!v || !v->voiceclient || !v->voiceclient->is_ready()) {
+    while (!m_voiceConnection || !m_voiceConnection->voiceclient || !m_voiceConnection->voiceclient->is_ready()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
         if (std::chrono::system_clock::now() > timeout) {
@@ -180,14 +187,19 @@ bool Bot::PlaySound(Sound* sound, const dpp::interaction_create_t& event)
         }
     }
     std::cout << "Voice client ready" << '\n';
-    dpp::discord_voice_client* voiceClient = v->voiceclient;
-
-    sound->Load(v->voiceclient);
-
-    SendMessage(event.command.channel_id, "Playing audio " + sound->GetURL());
-    event.delete_original_response();
-
-    auto op = sound->GetPacket();
+    
+    m_soundsQueue.push(sound);
+    if (m_isPlayingSound)
+    {
+        std::cout << "Add to queue" << '\n';
+        return true;
+    }
+    
+    dpp::discord_voice_client* voiceClient = m_voiceConnection->voiceclient;
+    m_currentSound = sound;
+    sound->Play(voiceClient);
+    m_time = 0.f;
+    m_isPlayingSound = true;
 
     std::cout << "Playing audio " << sound->GetURL() << '\n';
     return true;
@@ -208,6 +220,7 @@ void Bot::StopAudio(const dpp::interaction_create_t& event)
     }
 
     v->voiceclient->stop_audio();
+    m_isPlayingSound = false;
 }
 
 void Bot::SendMessage(dpp::snowflake channelId, const std::string& message)
@@ -361,7 +374,14 @@ void Bot::OnInteractionCreate(const dpp::interaction_create_t& event)
         else if (cmd_data.name == "play")
         {
             event.thinking();
-            event.reply(dpp::ir_channel_message_with_source, "Downloading audio...");
+            if (m_soundsQueue.empty())
+            {
+                event.reply(dpp::ir_channel_message_with_source, "Downloading audio...");
+            }
+            else
+            {
+                event.reply(dpp::ir_channel_message_with_source, "Added to queue");
+            }
             ThreadManager::AddTask(
                 [this, event]() {
                     OnPlay(event);
@@ -403,6 +423,28 @@ void Bot::OnPlay(const dpp::interaction_create_t& event)
     PlayAudio(url, event);
 }
 
+void Bot::PlayNextSound()
+{
+    if (m_soundsQueue.empty())
+        return;
+    m_currentSound = m_soundsQueue.front();
+
+    PlaySound(m_currentSound);
+}
+
 void Bot::OnTick()
 {
+    if (!m_isPlayingSound)
+        return;
+    m_time += 0.1f;
+    double duration = m_currentSound->GetLength();
+    if (m_time > duration)
+    {
+        m_isPlayingSound = false;
+        m_currentSound = nullptr;
+        m_time = 0.f;
+        m_soundsQueue.pop();
+
+        PlayNextSound();
+    }
 }
