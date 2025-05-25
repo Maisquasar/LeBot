@@ -5,6 +5,7 @@
 #include "Commands/JoinCommand.h"
 #include "Commands/LeaveCommand.h"
 #include "Commands/PingCommand.h"
+#include "Commands/PlayCommand.h"
 #include "Commands/TestCommand.h"
 #include "Commands/TrackCommand.h"
 
@@ -46,6 +47,9 @@ void CommandHandler::RegisterCommands()
             )
         );
     }
+
+    // Play a song
+    m_commands.push_back(std::make_unique<PlayCommand>(m_bot, "play", "Play a song", dpp::command_option(dpp::co_string, "song", "The song url (youtube only)", true)));
     
     handle.global_commands_get([&](const dpp::confirmation_callback_t& callback) {
         std::unordered_map<std::string, uint64_t> existingCommand;

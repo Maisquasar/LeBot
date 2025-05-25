@@ -10,4 +10,4 @@ CMakeLists.txt
 # MacOS Cache
 .DS_Store
 *.*~
-/tools/yt-dlp.exe
+/tools

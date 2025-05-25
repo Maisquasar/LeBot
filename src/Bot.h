@@ -27,9 +27,9 @@ public:
     template <typename... Args>
     void Log(std::string_view fmt, Args&&... args)
     {
-        auto fmt_args = std::make_format_args(std::forward<Args>(args)...);
-        std::string out = std::vformat(fmt, fmt_args);
-        m_bot.log(dpp::ll_info, out);
+        // auto fmt_args = std::make_format_args(std::forward<Args>(args)...);
+        // std::string out = std::vformat(fmt, fmt_args);
+        // m_bot.log(dpp::ll_info, out);
     }
     
     operator dpp::cluster&() { return m_bot; }

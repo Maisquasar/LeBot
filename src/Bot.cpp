@@ -1,7 +1,5 @@
 ﻿#include "Bot.h"
 
-#include "TrackerGG.h"
-
 Bot::Bot(const std::string& token): m_bot(token), m_commandHandler(this)
 {
     
