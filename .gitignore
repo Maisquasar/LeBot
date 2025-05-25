@@ -1,0 +1,13 @@
+Generate/
+Cache/
+.xmake/# Xmake cache
+.xmake/
+build/
+vsxmake*/
+CMakeLists.txt
+/.vscode
+
+# MacOS Cache
+.DS_Store
+*.*~
+/tools/yt-dlp.exe
