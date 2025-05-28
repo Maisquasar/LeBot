@@ -1,6 +1,7 @@
 ﻿#include "PlayCommand.h"
 
 #include "Bot.h"
+#include "ThreadManager.h"
 #include "External/YoutubeDL.h"
 
 void PlayCommand::Execute(const dpp::interaction_create_t& event)
@@ -13,7 +14,17 @@ void PlayCommand::Execute(const dpp::interaction_create_t& event)
         return;
     }
 
-    event.reply("Song " + url + " added to queue.");
-
-    p_bot->GetAudioPlayer().AddSong(url);
+    AudioPlayer& audioPlayer = p_bot->GetAudioPlayer();
+    if (YoutubeDL::IsPlaylist(url))
+    {
+        event.reply("Playlist " + url + " added to queue.");
+    
+        ThreadManager::AddTask(&AudioPlayer::AddPlaylist, &audioPlayer, url);
+    }
+    else
+    {
+        event.reply("Song " + url + " added to queue.");
+    
+        ThreadManager::AddTask(&AudioPlayer::AddSong, &audioPlayer, url);
+    }
 }

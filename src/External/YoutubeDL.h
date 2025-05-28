@@ -9,6 +9,10 @@ public:
     static std::string GetVideoID(const std::string& url);
     static std::string GetVideoTitle(const std::string& url);
     static std::filesystem::path DownloadVideo(const std::string& url);
+    static std::vector<std::string> GetURLsFromPlaylist(const std::string& url);
+
+    static bool IsPlaylist(const std::string& url);
+    static std::string GetIDFromURL(const std::string& url);
 private:
     static void ExtractVideo(const std::string& url, const std::filesystem::path& outputPath);
 };

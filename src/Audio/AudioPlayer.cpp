@@ -4,11 +4,6 @@
 #include "ThreadManager.h"
 #include "External/YoutubeDL.h"
 
-// void AudioPlayer::AddSong(const std::shared_ptr<Audio>& audio)
-// {
-//     m_audioQueue.push(audio);
-// }
-
 void AudioPlayer::AddSong(const std::string& url)
 {
     std::filesystem::path path = YoutubeDL::DownloadVideo(url);
@@ -18,12 +13,25 @@ void AudioPlayer::AddSong(const std::string& url)
         return;
     }
     
-    std::shared_ptr<Audio> audio = std::make_shared<Audio>(path);
+    std::shared_ptr<Audio> audio = std::make_shared<Audio>(YoutubeDL::GetVideoTitle(url), path);
     
     audio->EOnLoad += [this, audio]() { m_audioQueue.push(audio); };
 
     ThreadManager::AddTask(&Audio::Load, audio.get());
 }
+
+void AudioPlayer::AddPlaylist(const std::string& url)
+{
+    m_bot->Log("Getting urls from playlist {}", url);
+    auto urls = YoutubeDL::GetURLsFromPlaylist(url);
+    
+    m_bot->Log("Got {} urls", urls.size());
+    for (const auto& url : urls) {
+        m_bot->Log("Adding song {}", url);
+        AddSong(url);
+    }
+}
+
 
 void AudioPlayer::ThreadLoop()
 {
@@ -33,10 +41,12 @@ void AudioPlayer::ThreadLoop()
             continue;
         }
 
-        std::shared_ptr<Audio> audio = m_audioQueue.front();
+        ThreadManager::Lock();
+        m_currentAudio = m_audioQueue.front();
         m_audioQueue.pop();
+        ThreadManager::Unlock();
 
-        m_bot->PlayAudio(audio.get());
+        m_bot->PlayAudio(m_currentAudio.get());
     }   
 }
 

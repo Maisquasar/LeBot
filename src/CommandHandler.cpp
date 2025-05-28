@@ -6,6 +6,7 @@
 #include "Commands/LeaveCommand.h"
 #include "Commands/PingCommand.h"
 #include "Commands/PlayCommand.h"
+#include "Commands/QueueCommand.h"
 #include "Commands/TestCommand.h"
 #include "Commands/TrackCommand.h"
 
@@ -27,6 +28,9 @@ void CommandHandler::RegisterCommands()
 
     // Leave
     m_commands.push_back(std::make_unique<LeaveCommand>(m_bot, "leave", "Leave a voice channel"));
+
+    // Queue
+    m_commands.push_back(std::make_unique<QueueCommand>(m_bot, "queue", "Look at the queue"));
 
     // Track
     {

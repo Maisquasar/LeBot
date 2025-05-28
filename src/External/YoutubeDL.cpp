@@ -70,15 +70,72 @@ std::filesystem::path YoutubeDL::DownloadVideo(const std::string& url)
         std::filesystem::create_directory(outputDir);
     }
 
-    std::string videoID = GetVideoID(url);
+    std::string videoID = GetIDFromURL(url);
 
     const std::string outputPath = (cwd / outputDir / videoID).generic_string() + ".ogg";
-
     if (!std::filesystem::exists(outputPath))
         ExtractVideo(url, outputPath);
 
     return outputPath;
 }
+
+std::vector<std::string> YoutubeDL::GetURLsFromPlaylist(const std::string& url)
+{
+    const std::string baseDir = std::filesystem::current_path().generic_string();
+    const std::string cmd = 
+        "cd " + baseDir + "/" TOOL_DIR +
+        " && " YT_DLP_EXE " --flat-playlist --print %(url)s \"" + url + "\"";
+    auto result = ExecCommand(cmd);
+    
+    std::vector<std::string> urls;
+    std::istringstream stream(result);
+    std::string line;
+    while (std::getline(stream, line)) {
+        if (!line.empty())
+            urls.push_back(line);
+    }
+
+    return urls;
+}
+
+bool YoutubeDL::IsPlaylist(const std::string& url)
+{
+    return url.find("list=") != std::string::npos;
+}
+
+std::string YoutubeDL::GetIDFromURL(const std::string& url)
+{
+    std::string id;
+
+    if (auto index = url.find("list="); index != std::string::npos)
+    {
+        id = url.substr(index + 5);
+    }
+    else if (auto index = url.find("watch?v="); index != std::string::npos)
+    {
+        id = url.substr(index + 8);
+    }
+    else if (auto index = url.find("youtu.be/"); index != std::string::npos) // youtube short link
+    {
+        id = url.substr(index + 9);
+    }
+    else
+    {
+        return "";
+    }
+
+    if (auto index = id.find('?'); index != std::string::npos)
+    {
+        id = id.substr(0, index);
+    }
+    if (auto index = id.find('&'); index != std::string::npos)
+    {
+        id = id.substr(0, index);
+    }
+
+    return id;
+}
+
 
 void YoutubeDL::ExtractVideo(const std::string& url, const std::filesystem::path& outputPath)
 {
