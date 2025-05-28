@@ -17,7 +17,7 @@
 #endif
 
 // Function to execute a shell command and capture its output
-std::string execCommand(const std::string& command) {
+std::string ExecCommand(const std::string& command) {
     std::array<char, 128> buffer;
     std::string result;
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(command.c_str(), "r"), pclose);
@@ -38,17 +38,30 @@ std::string YoutubeDL::GetVideoID(const std::string& url)
         " && " YT_DLP_EXE " --ffmpeg-location \"" + baseDir + "/" FFMPEG_PATH +
         "\" --get-id " + url;
 
-    std::string videoID = execCommand(cmd);
+    std::string videoID = ExecCommand(cmd);
     videoID.erase(videoID.find_last_not_of(" \t\r\n") + 1);
     return videoID;
 }
 
-std::filesystem::path YoutubeDL::DownloadVideo(Bot* bot, const std::string& url)
+std::string YoutubeDL::GetVideoTitle(const std::string& url)
+{
+    const std::string baseDir = std::filesystem::current_path().generic_string();
+    const std::string cmd = 
+        "cd " + baseDir + "/" TOOL_DIR +
+        " && " YT_DLP_EXE " --ffmpeg-location \"" + baseDir + "/" FFMPEG_PATH +
+        "\" --get-title " + url;
+
+    std::string videoTitle = ExecCommand(cmd);
+    videoTitle.erase(videoTitle.find_last_not_of(" \t\r\n") + 1);
+    return videoTitle;
+}
+
+std::filesystem::path YoutubeDL::DownloadVideo(const std::string& url)
 {
     const auto cwd = std::filesystem::current_path();
     const auto ytDlpPath = cwd / YT_DLP_PATH;
-    if (!std::filesystem::exists(ytDlpPath)) {
-        bot->Log("yt-dlp not found in {}", YT_DLP_PATH);
+    if (!std::filesystem::exists(ytDlpPath))
+    {
         return {};
     }
 
@@ -61,12 +74,13 @@ std::filesystem::path YoutubeDL::DownloadVideo(Bot* bot, const std::string& url)
 
     const std::string outputPath = (cwd / outputDir / videoID).generic_string() + ".ogg";
 
-    ExtractVideo(bot, url, outputPath);
+    if (!std::filesystem::exists(outputPath))
+        ExtractVideo(url, outputPath);
 
-    return "";
+    return outputPath;
 }
 
-void YoutubeDL::ExtractVideo(Bot* bot, const std::string& url, const std::filesystem::path& outputPath)
+void YoutubeDL::ExtractVideo(const std::string& url, const std::filesystem::path& outputPath)
 {
     const std::string baseDir = std::filesystem::current_path().generic_string();
     const std::string cmd = 
@@ -74,7 +88,5 @@ void YoutubeDL::ExtractVideo(Bot* bot, const std::string& url, const std::filesy
         " && " YT_DLP_EXE " --ffmpeg-location \"" + baseDir + "/" FFMPEG_PATH + "\" --extract-audio --remux-video ogg -o \"" + outputPath.generic_string() + "\" " + url;
 
     std::system(cmd.c_str());
-
-    bot->Log("Video downloaded to {}", outputPath.string());
 }
 

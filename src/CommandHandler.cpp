@@ -57,7 +57,7 @@ void CommandHandler::RegisterCommands()
         if (!callback.is_error()) {
             auto commands = std::get<dpp::slashcommand_map>(callback.value);
             for (const auto& [id, cmd] : commands) {
-                std::cout << "Existing Command: " << cmd.name << " (ID: " << id << ")\n";
+                // std::cout << "Existing Command: " << cmd.name << " (ID: " << id << ")\n";
                 existingCommand[cmd.name] = id;
             }
         }

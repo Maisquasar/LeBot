@@ -11,3 +11,5 @@ CMakeLists.txt
 .DS_Store
 *.*~
 /tools
+/tokens.json
+/output/

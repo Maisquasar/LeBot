@@ -7,8 +7,15 @@
 class AudioPlayer
 {
 public:
-    void AddSong(std::unique_ptr<Audio> audio);
+    AudioPlayer(Bot* bot) : m_bot(bot) {}
+    
+    void AddSong(const std::string& url);
+
+    void ThreadLoop();
+
+    void Start();
 
 private:
-    std::queue<std::unique_ptr<Audio>> audioQueue;
+    Bot* m_bot;
+    std::queue<std::shared_ptr<Audio>> m_audioQueue;
 };

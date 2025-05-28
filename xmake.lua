@@ -8,10 +8,8 @@ if is_plat("windows") then
 end
 
 add_requires("dpp")
-
 add_requires("libogg")
 add_requires("libopus")
-add_requires("vcpkg::glfw3")
 
 set_rundir(".")
 
@@ -19,13 +17,16 @@ target("LeBot")
     set_kind("binary")
     add_files("src/**.cpp")
     add_headerfiles("src/**.h")
+
+    add_linkdirs("external/lib")
+    add_links("opusfile")
     
     add_includedirs("src")
+    add_includedirs("external/include")
     
     add_packages("dpp")
     add_packages("libogg")
     add_packages("libopus")
-    add_packages("vcpkg::glfw3")
     
     before_build(function (target)
         os.mkdir("tools")

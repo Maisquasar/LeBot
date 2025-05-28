@@ -1,5 +1,7 @@
 ﻿#include "Bot.h"
 
+#include "ThreadManager.h"
+
 Bot::Bot(const std::string& token): m_bot(token), m_commandHandler(this)
 {
     
@@ -7,6 +9,8 @@ Bot::Bot(const std::string& token): m_bot(token), m_commandHandler(this)
 
 void Bot::Initialize()
 {
+    ThreadManager::GetInstance()->Initialize();
+    
     m_bot.on_log(dpp::utility::cout_logger());
     
     m_bot.on_interaction_create(
@@ -22,19 +26,29 @@ void Bot::Initialize()
         m_commandHandler.RegisterCommands();
     });
 
-    
+    m_bot.on_voice_state_update([&](const dpp::voice_state_update_t &event)
+    {
+        if (event.state.channel_id == 0)
+        {
+            m_isVoiceReady = false;
+            m_voiceClient = nullptr;
+        }
+    });
+
+    m_bot.on_voice_ready([&](const dpp::voice_ready_t &event)
+    {
+        m_isVoiceReady = true;
+        m_voiceClient = event.voice_client;
+    });
 }
 
 void Bot::Run()
 {
-    m_tickThread = std::thread(&Bot::RunThread, this);
+    ThreadManager::AddTask(&Bot::RunThread, this);
+
+    m_audioPlayer.Start();
     
     m_bot.start(dpp::st_wait);
-    
-    m_isRunning = false;
-    if (m_tickThread.joinable()) {
-        m_tickThread.join();
-    }
 }
 
 void Bot::RunThread() const
@@ -47,11 +61,11 @@ void Bot::RunThread() const
 
 void Bot::Destroy()
 {
-    m_bot.shutdown();
+    ThreadManager::GetInstance()->Terminate();
     
-    if (m_tickThread.joinable()) {
-        m_tickThread.join();
-    }
+    m_isRunning = false;
+
+    m_bot.shutdown();
 }
 
 void Bot::Message(dpp::snowflake channelId, const std::string& message)
@@ -70,11 +84,21 @@ bool Bot::JoinVocalChannel(const dpp::snowflake& guildId, const dpp::snowflake& 
     if (!g->connect_member_voice(userId)) {
         return false;
     }
-
     return true;
 }
 
 void Bot::LeaveVocalChannel(const dpp::snowflake& guildId, dpp::discord_client* client)
 {
     client->disconnect_voice(guildId);
+}
+
+void Bot::PlayAudio(Audio* audio)
+{
+    if (!m_isVoiceReady)
+    {
+        Log("Voice is not ready.");
+        return;
+    }
+
+    audio->Play(m_voiceClient);
 }

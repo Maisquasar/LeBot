@@ -4,8 +4,16 @@
 #include <dpp/dpp.h>
 #include <future>
 
+std::string TrackerGG::GetToken()
+{
+  std::ifstream file("tokens.json");
+  nlohmann::json config;
+  file >> config;
+  return config["trackergg-token"];
+}
+
 nlohmann::json TrackerGG::GetValorantPlayerStats(dpp::cluster& bot, const std::string& username) {
-    const std::string apiKey = TRACKERGG_TOKEN;
+    const std::string apiKey = GetToken();
     const std::string platform = "riot";
     const std::string game = "standard";
     const std::string encodedUsername = dpp::utility::url_encode(username);

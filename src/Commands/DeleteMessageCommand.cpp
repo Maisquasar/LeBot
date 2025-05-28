@@ -15,7 +15,7 @@ void DeleteMessageCommand::Execute(const dpp::interaction_create_t& event)
         [&](const dpp::confirmation_callback_t& callback)
         {
             if (callback.is_error()) {
-                std::cerr << "Failed to get messages: " << callback.get_error().message << std::endl;
+                p_bot->Log("Failed to get messages: {}", callback.get_error().message);
                 return;
             }
 
@@ -35,13 +35,15 @@ void DeleteMessageCommand::Execute(const dpp::interaction_create_t& event)
                     // ≥ 14 days → single delete
                     oldIds.push_back(messageID);
                 }
-                p_bot->Log("Delete message ({}): {}", std::to_string(messageID), message.content);
+                // p_bot->Log("Delete message ({}): {}", std::to_string(messageID), message.content);
                 
             }
             handle.message_delete_bulk(ids, channelId, 
                 [&](const dpp::confirmation_callback_t& del_cb) {
                     if ( del_cb.is_error() )
-                        std::cerr << "Bulk delete failed: " << del_cb.get_error().message << "\n";
+                    {
+                        p_bot->Log("Bulk delete failed: {}", callback.get_error().message);
+                    }
                     done = true;
             });
 
@@ -50,7 +52,9 @@ void DeleteMessageCommand::Execute(const dpp::interaction_create_t& event)
                     handle.message_delete(channelId, id, 
                         [&](const dpp::confirmation_callback_t& del_cb) {
                             if ( del_cb.is_error() )
-                                std::cerr << "Single delete failed: " << del_cb.get_error().message << "\n";
+                            {
+                                p_bot->Log("Single delete failed: {}", callback.get_error().message);
+                            }
                             done = true;
                     });
                 }

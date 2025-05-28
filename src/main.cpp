@@ -2,18 +2,29 @@
 
 #include "Bot.h"
 
-#define TOKEN "MTMyNDEwNDA3NzQ2NTg3ODY5MA.GtQzGf.K_GL9va3aSYcmjcZud9KYLyYyaBA52dnnfh4PY"
+#include <nlohmann/json.hpp>
+
+static std::string GetBotToken()
+{
+    std::ifstream file("tokens.json");
+    nlohmann::json config;
+    file >> config;
+    return config["bot-token"];
+}
 
 
 int Main(int argc, char** argv)
 {
     try
     {
+        std::string TOKEN = GetBotToken();
         Bot bot(TOKEN);
         
         bot.Initialize();
 
         bot.Run();
+
+        bot.Destroy();
     }
     catch (dpp::exception e)
     {
